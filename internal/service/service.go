@@ -1,6 +1,7 @@
 package service
 
 import (
+	"log/slog"
 	"math/rand"
 
 	"github.com/Vadim-Makhnev/url-shortener/internal/repository"
@@ -14,12 +15,14 @@ type Repository interface {
 }
 
 type URLService struct {
-	repo Repository
+	repo   Repository
+	logger *slog.Logger
 }
 
-func NewService(repo Repository) *URLService {
+func NewService(repo Repository, logger *slog.Logger) *URLService {
 	return &URLService{
-		repo: repo,
+		repo:   repo,
+		logger: logger,
 	}
 }
 
@@ -32,6 +35,7 @@ func (s *URLService) ShortenURL(originalURL string) (string, error) {
 	}
 
 	if err := s.repo.CreateURL(url); err != nil {
+		s.logger.Error("ShortenURL:", "error", err)
 		return "", err
 	}
 
@@ -41,6 +45,7 @@ func (s *URLService) ShortenURL(originalURL string) (string, error) {
 func (s *URLService) GetOriginalURL(shortCode string) (string, error) {
 	url, err := s.repo.GetURLByShortCode(shortCode)
 	if err != nil {
+		s.logger.Error("GetOriginalURL:", "error", err)
 		return "", nil
 	}
 
