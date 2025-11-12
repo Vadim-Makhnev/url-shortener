@@ -17,7 +17,7 @@ import (
 
 func main() {
 	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found")
+		log.Fatalf("load file: %v", err)
 	}
 
 	metrics.InitMetrics()
@@ -26,7 +26,7 @@ func main() {
 
 	repo, err := repository.NewRepository(slog.New(logger))
 	if err != nil {
-		log.Fatal("Failed to initialize repository:", err)
+		log.Fatalf("initialize repository: %v", err)
 	}
 
 	urlService := service.NewService(repo, slog.New(logger))
