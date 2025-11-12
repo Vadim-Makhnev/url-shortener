@@ -134,6 +134,7 @@ func (r *URLRepository) GetAllURLS() ([]URL, error) {
 	for rows.Next() {
 		var url URL
 		if err := rows.Scan(&url.ID, &url.ShortCode, &url.OriginalURL, &url.CreatedAt, &url.AccessCount); err != nil {
+			r.logger.Error("GetAllURLS scan", "error", err)
 			return nil, err
 		}
 		urls = append(urls, url)
