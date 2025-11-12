@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"time"
 
@@ -26,11 +26,12 @@ type URL struct {
 }
 
 type URLRepository struct {
-	db    *sql.DB
-	redis *redis.Client
+	db     *sql.DB
+	redis  *redis.Client
+	logger *slog.Logger
 }
 
-func NewRepository() (*URLRepository, error) {
+func NewRepository(logger *slog.Logger) (*URLRepository, error) {
 	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 		os.Getenv("DB_HOST"),
 		os.Getenv("DB_PORT"),
@@ -60,8 +61,9 @@ func NewRepository() (*URLRepository, error) {
 	}
 
 	return &URLRepository{
-		db:    db,
-		redis: redisClient,
+		db:     db,
+		redis:  redisClient,
+		logger: logger,
 	}, nil
 }
 
@@ -74,6 +76,7 @@ func (r *URLRepository) CreateURL(url *URL) error {
 
 	err := r.db.QueryRowContext(ctx, query, url.ShortCode, url.OriginalURL).Scan(&url.ID, &url.CreatedAt)
 	if err != nil {
+		r.logger.Error("CreateURL", "original_url", url.OriginalURL, "short_code", url.ShortCode, "id", url.ID, "error", err)
 		return fmt.Errorf("repository: CreateURL: %w", err)
 	}
 	return nil
@@ -91,6 +94,10 @@ func (r *URLRepository) GetURLByShortCode(shortCode string) (*URL, error) {
 		}, nil
 	}
 
+	if err != redis.Nil {
+		r.logger.Error("Redis", "short_code", shortCode, "error", err)
+	}
+
 	var url URL
 	query := `SELECT id, short_code, original_url, created_at, access_count
 			FROM urls WHERE short_code = $1`
@@ -100,12 +107,13 @@ func (r *URLRepository) GetURLByShortCode(shortCode string) (*URL, error) {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
+		r.logger.Error("GetURLByshortCode", "short_code", shortCode, "error", err)
 		return nil, fmt.Errorf("repository: GetURLByShortCode: %w", err)
 	}
 
 	err = r.redis.Set(ctx, shortCode, url.OriginalURL, 24*time.Hour).Err()
 	if err != nil {
-		log.Printf("redis caching: %v", err)
+		r.logger.Error("Redis set", "short_code", shortCode, "original_url", url.OriginalURL, "error", err)
 	}
 
 	return &url, nil
@@ -117,6 +125,7 @@ func (r *URLRepository) GetAllURLS() ([]URL, error) {
 
 	rows, err := r.db.Query(query)
 	if err != nil {
+		r.logger.Error("GetAllURLS", "error", err)
 		return nil, fmt.Errorf("repository: GetAllURLS: %w", err)
 	}
 	defer rows.Close()
@@ -130,6 +139,11 @@ func (r *URLRepository) GetAllURLS() ([]URL, error) {
 		urls = append(urls, url)
 	}
 
+	if err := rows.Err(); err != nil {
+		r.logger.Error("GetAllURLS rows", "error", err)
+		return nil, err
+	}
+
 	return urls, nil
 }
 
@@ -137,6 +151,7 @@ func (r *URLRepository) IncrementAccessCount(shortCode string) error {
 	query := `UPDATE urls SET access_count = access_count + 1 WHERE short_code = $1`
 	_, err := r.db.Exec(query, shortCode)
 	if err != nil {
+		r.logger.Error("IncrementAccessCount", "short_code", shortCode, "error", err)
 		return fmt.Errorf("repository: IncrementAccessCount: %w", err)
 	}
 
