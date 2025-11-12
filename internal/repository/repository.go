@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"time"
 
@@ -24,12 +25,12 @@ type URL struct {
 	AccessCount int       `json:"access_count"`
 }
 
-type Repository struct {
+type URLRepository struct {
 	db    *sql.DB
 	redis *redis.Client
 }
 
-func NewRepository() (*Repository, error) {
+func NewRepository() (*URLRepository, error) {
 	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 		os.Getenv("DB_HOST"),
 		os.Getenv("DB_PORT"),
@@ -58,13 +59,13 @@ func NewRepository() (*Repository, error) {
 		return nil, fmt.Errorf("redis ping: %w", err)
 	}
 
-	return &Repository{
+	return &URLRepository{
 		db:    db,
 		redis: redisClient,
 	}, nil
 }
 
-func (r *Repository) CreateURL(url *URL) error {
+func (r *URLRepository) CreateURL(url *URL) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -78,7 +79,7 @@ func (r *Repository) CreateURL(url *URL) error {
 	return nil
 }
 
-func (r *Repository) GetURLByShortCode(shortCode string) (*URL, error) {
+func (r *URLRepository) GetURLByShortCode(shortCode string) (*URL, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -102,12 +103,15 @@ func (r *Repository) GetURLByShortCode(shortCode string) (*URL, error) {
 		return nil, fmt.Errorf("repository: GetURLByShortCode: %w", err)
 	}
 
-	r.redis.Set(ctx, shortCode, url.OriginalURL, 24*time.Hour)
+	err = r.redis.Set(ctx, shortCode, url.OriginalURL, 24*time.Hour).Err()
+	if err != nil {
+		log.Printf("redis caching: %v", err)
+	}
 
 	return &url, nil
 }
 
-func (r *Repository) GetAllURLS() ([]URL, error) {
+func (r *URLRepository) GetAllURLS() ([]URL, error) {
 	query := `SELECT id, short_code, original_url, created_at, access_count FROM urls ORDER BY
 	created_at DESC`
 
@@ -129,7 +133,7 @@ func (r *Repository) GetAllURLS() ([]URL, error) {
 	return urls, nil
 }
 
-func (r *Repository) IncrementAccessCount(shortCode string) error {
+func (r *URLRepository) IncrementAccessCount(shortCode string) error {
 	query := `UPDATE urls SET access_count = access_count + 1 WHERE short_code = $1`
 	_, err := r.db.Exec(query, shortCode)
 	if err != nil {

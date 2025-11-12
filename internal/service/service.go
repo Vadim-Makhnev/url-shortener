@@ -13,17 +13,17 @@ type Repository interface {
 	IncrementAccessCount(shortCode string) error
 }
 
-type Service struct {
+type URLService struct {
 	repo Repository
 }
 
-func NewService(repo Repository) *Service {
-	return &Service{
+func NewService(repo Repository) *URLService {
+	return &URLService{
 		repo: repo,
 	}
 }
 
-func (s *Service) ShortenURL(originalURL string) (string, error) {
+func (s *URLService) ShortenURL(originalURL string) (string, error) {
 	shortCode := generateShortCode()
 
 	url := &repository.URL{
@@ -38,7 +38,7 @@ func (s *Service) ShortenURL(originalURL string) (string, error) {
 	return shortCode, nil
 }
 
-func (s *Service) GetOriginalURL(shortCode string) (string, error) {
+func (s *URLService) GetOriginalURL(shortCode string) (string, error) {
 	url, err := s.repo.GetURLByShortCode(shortCode)
 	if err != nil {
 		return "", nil
@@ -49,7 +49,7 @@ func (s *Service) GetOriginalURL(shortCode string) (string, error) {
 	return url.OriginalURL, nil
 }
 
-func (s *Service) GetAllURLS() ([]repository.URL, error) {
+func (s *URLService) GetAllURLS() ([]repository.URL, error) {
 	return s.repo.GetAllURLS()
 }
 
