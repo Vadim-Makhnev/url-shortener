@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 
@@ -21,12 +22,14 @@ func main() {
 
 	metrics.InitMetrics()
 
-	repo, err := repository.NewRepository()
+	logger := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{})
+
+	repo, err := repository.NewRepository(slog.New(logger))
 	if err != nil {
 		log.Fatal("Failed to initialize repository:", err)
 	}
 
-	urlService := service.NewService(repo)
+	urlService := service.NewService(repo, slog.New(logger))
 
 	urlHandler := handler.NewHandler(urlService)
 
