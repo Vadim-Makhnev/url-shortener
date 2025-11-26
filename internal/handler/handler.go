@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/Vadim-Makhnev/url-shortener/internal/metrics"
 	"github.com/Vadim-Makhnev/url-shortener/internal/repository/postgres"
@@ -16,6 +17,12 @@ type URLService interface {
 	ShortenURL(originalURL string) (string, error)
 	GetOriginalURL(shortCode string) (string, error)
 	GetAllURLS() ([]postgres.URL, error)
+}
+
+type URLResponse struct {
+	ShortCode   string    `json:"short_code"`
+	OriginalURL string    `json:"original_url"`
+	CreatedAt   time.Time `json:"created_at,omitempty"`
 }
 
 type URLHandler struct {
@@ -94,10 +101,20 @@ func (h *URLHandler) RedirectURL(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *URLHandler) GetURLs(w http.ResponseWriter, r *http.Request) {
-	urls, err := h.service.GetAllURLS()
+	list, err := h.service.GetAllURLS()
 	if err != nil {
 		http.Error(w, "Failed to get URLs", http.StatusInternalServerError)
 		return
+	}
+
+	var urls []URLResponse
+
+	for _, url := range list {
+		urls = append(urls, URLResponse{
+			ShortCode:   url.ShortCode,
+			OriginalURL: url.OriginalURL,
+			CreatedAt:   url.CreatedAt,
+		})
 	}
 
 	w.Header().Set("Content-Type", "application/json")
