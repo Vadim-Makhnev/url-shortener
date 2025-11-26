@@ -8,7 +8,7 @@ import (
 
 	"github.com/Vadim-Makhnev/url-shortener/internal/handler"
 	"github.com/Vadim-Makhnev/url-shortener/internal/metrics"
-	"github.com/Vadim-Makhnev/url-shortener/internal/repository/postgres"
+	"github.com/Vadim-Makhnev/url-shortener/internal/repository"
 	"github.com/Vadim-Makhnev/url-shortener/internal/service"
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
@@ -24,7 +24,7 @@ func main() {
 
 	logger := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{})
 
-	repo, err := postgres.NewRepository(slog.New(logger))
+	repo, err := repository.NewRepository(slog.New(logger))
 	if err != nil {
 		log.Fatalf("initialize repository: %v", err)
 	}

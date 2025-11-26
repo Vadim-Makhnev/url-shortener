@@ -4,19 +4,18 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/Vadim-Makhnev/url-shortener/internal/metrics"
-	"github.com/Vadim-Makhnev/url-shortener/internal/repository/postgres"
+	"github.com/Vadim-Makhnev/url-shortener/internal/repository"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
 type URLService interface {
-	ShortenURL(originalURL string) (string, error)
+	ShortenURL(originalURL string) (*repository.URL, error)
 	GetOriginalURL(shortCode string) (string, error)
-	GetAllURLS() ([]postgres.URL, error)
+	GetAllURLS() ([]repository.URL, error)
 }
 
 type URLResponse struct {
@@ -57,24 +56,15 @@ func (h *URLHandler) ShortenURL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	shortCode, err := h.service.ShortenURL(req.URL)
+	url, err := h.service.ShortenURL(req.URL)
 	if err != nil {
 		http.Error(w, "failed to shorten URL", http.StatusInternalServerError)
 		return
 	}
 
-	baseURL := "http://localhost:8080"
-	if envBaseURL := os.Getenv("BASE_URL"); envBaseURL != "" {
-		baseURL = envBaseURL
-	}
-
-	response := ShortenResponse{
-		ShortURL: baseURL + "/" + shortCode,
-	}
-
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(response)
+	json.NewEncoder(w).Encode(url)
 }
 
 func (h *URLHandler) RedirectURL(w http.ResponseWriter, r *http.Request) {
@@ -87,7 +77,7 @@ func (h *URLHandler) RedirectURL(w http.ResponseWriter, r *http.Request) {
 
 	originalURL, err := h.service.GetOriginalURL(shortCode)
 	if err != nil {
-		if errors.Is(err, postgres.ErrNotFound) {
+		if errors.Is(err, repository.ErrNotFound) {
 			http.Error(w, "URL not found", http.StatusNotFound)
 			return
 		}

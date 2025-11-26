@@ -1,4 +1,4 @@
-package postgres
+package repository
 
 import (
 	"context"
@@ -11,10 +11,6 @@ import (
 
 	_ "github.com/lib/pq"
 	"github.com/redis/go-redis/v9"
-)
-
-var (
-	ErrNotFound = errors.New("url not found")
 )
 
 type URL struct {
@@ -66,19 +62,27 @@ func NewRepository(logger *slog.Logger) (*URLRepository, error) {
 	}, nil
 }
 
-func (r *URLRepository) CreateURL(url *URL) error {
+func (r *URLRepository) CreateURL(shortCode, originalURL string) (*URL, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+
+	var id int
+	var createdAt time.Time
 
 	query := `INSERT INTO urls (short_code, original_url) VALUES ($1, $2)
 			RETURNING id, created_at`
 
-	err := r.db.QueryRowContext(ctx, query, url.ShortCode, url.OriginalURL).Scan(&url.ID, &url.CreatedAt)
+	err := r.db.QueryRowContext(ctx, query, shortCode, originalURL).Scan(&id, &createdAt)
 	if err != nil {
-		r.logger.Error("CreateURL", "original_url", url.OriginalURL, "short_code", url.ShortCode, "id", url.ID, "error", err)
-		return fmt.Errorf("repository: CreateURL: %w", err)
+		r.logger.Error("CreateURL", "original_url", originalURL, "short_code", shortCode, "id", id, "error", err)
+		return nil, fmt.Errorf("repository: CreateURL: %w", err)
 	}
-	return nil
+	return &URL{
+		ID:          id,
+		ShortCode:   shortCode,
+		OriginalURL: originalURL,
+		CreatedAt:   createdAt,
+	}, nil
 }
 
 func (r *URLRepository) GetURLByShortCode(shortCode string) (string, error) {
@@ -116,7 +120,7 @@ func (r *URLRepository) GetURLByShortCode(shortCode string) (string, error) {
 }
 
 func (r *URLRepository) GetAllURLS() ([]URL, error) {
-	query := `SELECT id, short_code, original_url, created_at, access_count FROM urls ORDER BY
+	query := `SELECT id, short_code, original_url, created_at FROM urls ORDER BY
 	created_at DESC`
 
 	rows, err := r.db.Query(query)

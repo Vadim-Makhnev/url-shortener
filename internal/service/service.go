@@ -4,13 +4,13 @@ import (
 	"log/slog"
 	"math/rand"
 
-	"github.com/Vadim-Makhnev/url-shortener/internal/repository/postgres"
+	"github.com/Vadim-Makhnev/url-shortener/internal/repository"
 )
 
 type Repository interface {
-	CreateURL(url *postgres.URL) error
-	GetURLByShortCode(shortCode string) (*postgres.URL, error)
-	GetAllURLS() ([]postgres.URL, error)
+	CreateURL(shortCode, originalURL string) (*repository.URL, error)
+	GetURLByShortCode(shortCode string) (string, error)
+	GetAllURLS() ([]repository.URL, error)
 }
 
 type URLService struct {
@@ -25,20 +25,16 @@ func NewService(repo Repository, logger *slog.Logger) *URLService {
 	}
 }
 
-func (s *URLService) ShortenURL(originalURL string) (string, error) {
+func (s *URLService) ShortenURL(originalURL string) (*repository.URL, error) {
 	shortCode := generateShortCode()
 
-	url := &postgres.URL{
-		ShortCode:   shortCode,
-		OriginalURL: originalURL,
-	}
-
-	if err := s.repo.CreateURL(url); err != nil {
+	url, err := s.repo.CreateURL(shortCode, originalURL)
+	if err != nil {
 		s.logger.Error("ShortenURL:", "error", err)
-		return "", err
+		return nil, err
 	}
 
-	return shortCode, nil
+	return url, nil
 }
 
 func (s *URLService) GetOriginalURL(shortCode string) (string, error) {
@@ -48,10 +44,10 @@ func (s *URLService) GetOriginalURL(shortCode string) (string, error) {
 		return "", err
 	}
 
-	return url.OriginalURL, nil
+	return url, nil
 }
 
-func (s *URLService) GetAllURLS() ([]postgres.URL, error) {
+func (s *URLService) GetAllURLS() ([]repository.URL, error) {
 	return s.repo.GetAllURLS()
 }
 
