@@ -81,41 +81,38 @@ func (r *URLRepository) CreateURL(url *URL) error {
 	return nil
 }
 
-func (r *URLRepository) GetURLByShortCode(shortCode string) (*URL, error) {
+func (r *URLRepository) GetURLByShortCode(shortCode string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	cachedURL, err := r.redis.Get(ctx, shortCode).Result()
+	cached, err := r.redis.Get(ctx, shortCode).Result()
 	if err == nil {
-		return &URL{
-			ShortCode:   shortCode,
-			OriginalURL: cachedURL,
-		}, nil
+		return cached, nil
 	}
 
 	if err != redis.Nil {
 		r.logger.Error("Redis", "short_code", shortCode, "error", err)
 	}
 
-	var url URL
-	query := `SELECT id, short_code, original_url, created_at, access_count
-			FROM urls WHERE short_code = $1`
+	var originalURL string
+	query := `SELECT original_url FROM urls 
+			WHERE short_code = $1`
 
-	err = r.db.QueryRowContext(ctx, query, shortCode).Scan(&url.ID, &url.ShortCode, &url.OriginalURL, &url.CreatedAt)
+	err = r.db.QueryRowContext(ctx, query, shortCode).Scan(&originalURL)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrNotFound
+			return "", ErrNotFound
 		}
 		r.logger.Error("GetURLByshortCode", "short_code", shortCode, "error", err)
-		return nil, fmt.Errorf("repository: GetURLByShortCode: %w", err)
+		return "", fmt.Errorf("repository: GetURLByShortCode: %w", err)
 	}
 
-	err = r.redis.Set(ctx, shortCode, url.OriginalURL, 24*time.Hour).Err()
+	err = r.redis.Set(ctx, shortCode, originalURL, 24*time.Hour).Err()
 	if err != nil {
-		r.logger.Error("Redis set", "short_code", shortCode, "original_url", url.OriginalURL, "error", err)
+		r.logger.Error("Redis set", "short_code", shortCode, "original_url", originalURL, "error", err)
 	}
 
-	return &url, nil
+	return originalURL, nil
 }
 
 func (r *URLRepository) GetAllURLS() ([]URL, error) {
