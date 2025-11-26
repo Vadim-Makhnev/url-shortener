@@ -22,7 +22,7 @@ type URLService interface {
 type URLResponse struct {
 	ShortCode   string    `json:"short_code"`
 	OriginalURL string    `json:"original_url"`
-	CreatedAt   time.Time `json:"created_at,omitempty"`
+	CreatedAt   time.Time `json:"created_at,omitzero"`
 }
 
 type URLHandler struct {

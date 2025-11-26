@@ -22,7 +22,6 @@ type URL struct {
 	ShortCode   string    `json:"short_code"`
 	OriginalURL string    `json:"original_url"`
 	CreatedAt   time.Time `json:"created_at"`
-	AccessCount int       `json:"access_count"`
 }
 
 type URLRepository struct {
@@ -102,7 +101,7 @@ func (r *URLRepository) GetURLByShortCode(shortCode string) (*URL, error) {
 	query := `SELECT id, short_code, original_url, created_at, access_count
 			FROM urls WHERE short_code = $1`
 
-	err = r.db.QueryRowContext(ctx, query, shortCode).Scan(&url.ID, &url.ShortCode, &url.OriginalURL, &url.CreatedAt, &url.AccessCount)
+	err = r.db.QueryRowContext(ctx, query, shortCode).Scan(&url.ID, &url.ShortCode, &url.OriginalURL, &url.CreatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -133,7 +132,7 @@ func (r *URLRepository) GetAllURLS() ([]URL, error) {
 	var urls []URL
 	for rows.Next() {
 		var url URL
-		if err := rows.Scan(&url.ID, &url.ShortCode, &url.OriginalURL, &url.CreatedAt, &url.AccessCount); err != nil {
+		if err := rows.Scan(&url.ID, &url.ShortCode, &url.OriginalURL, &url.CreatedAt); err != nil {
 			r.logger.Error("GetAllURLS scan", "error", err)
 			return nil, err
 		}
