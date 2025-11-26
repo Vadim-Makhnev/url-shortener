@@ -7,7 +7,7 @@ import (
 	"os"
 
 	"github.com/Vadim-Makhnev/url-shortener/internal/metrics"
-	"github.com/Vadim-Makhnev/url-shortener/internal/repository"
+	"github.com/Vadim-Makhnev/url-shortener/internal/repository/postgres"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -15,7 +15,7 @@ import (
 type URLService interface {
 	ShortenURL(originalURL string) (string, error)
 	GetOriginalURL(shortCode string) (string, error)
-	GetAllURLS() ([]repository.URL, error)
+	GetAllURLS() ([]postgres.URL, error)
 }
 
 type URLHandler struct {
@@ -80,7 +80,7 @@ func (h *URLHandler) RedirectURL(w http.ResponseWriter, r *http.Request) {
 
 	originalURL, err := h.service.GetOriginalURL(shortCode)
 	if err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
+		if errors.Is(err, postgres.ErrNotFound) {
 			http.Error(w, "URL not found", http.StatusNotFound)
 			return
 		}
