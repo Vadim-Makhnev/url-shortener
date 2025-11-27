@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/Vadim-Makhnev/url-shortener/internal/config"
 	"github.com/Vadim-Makhnev/url-shortener/internal/handler"
 	"github.com/Vadim-Makhnev/url-shortener/internal/metrics"
 	"github.com/Vadim-Makhnev/url-shortener/internal/repository"
@@ -24,10 +25,14 @@ func main() {
 
 	logger := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{})
 
-	repo, err := repository.NewRepository(slog.New(logger))
+	dbConfig := config.NewDatabaseConfig()
+	dbConnections, err := config.NewDatabaseConnections(dbConfig)
 	if err != nil {
-		log.Fatalf("initialize repository: %v", err)
+		log.Fatalf("initialize database connections: %v", err)
 	}
+	defer dbConnections.Close()
+
+	repo := repository.NewRepository(slog.New(logger), dbConnections.Postgres, dbConnections.Redis)
 
 	urlService := service.NewService(repo, slog.New(logger))
 

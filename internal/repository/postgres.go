@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"os"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -21,45 +20,18 @@ type URL struct {
 }
 
 type URLRepository struct {
-	db     *sql.DB
-	redis  *redis.Client
-	logger *slog.Logger
+	postgres *sql.DB
+	redis    *redis.Client
+	logger   *slog.Logger
 }
 
-func NewRepository(logger *slog.Logger) (*URLRepository, error) {
-	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
-		os.Getenv("DB_HOST"),
-		os.Getenv("DB_PORT"),
-		os.Getenv("DB_USER"),
-		os.Getenv("DB_PASSWORD"),
-		os.Getenv("DB_NAME"),
-		os.Getenv("DB_SSLMODE"),
-	)
-
-	db, err := sql.Open("postgres", connStr)
-	if err != nil {
-		return nil, fmt.Errorf("postgres driver: %w", err)
-	}
-
-	if err := db.Ping(); err != nil {
-		return nil, fmt.Errorf("postgres ping: %w", err)
-	}
-
-	redisClient := redis.NewClient(&redis.Options{
-		Addr:     fmt.Sprintf("%s:%s", os.Getenv("REDIS_HOST"), os.Getenv("REDIS_PORT")),
-		Password: os.Getenv("REDIS_PASSWORD"),
-		DB:       0,
-	})
-
-	if err := redisClient.Ping(context.Background()).Err(); err != nil {
-		return nil, fmt.Errorf("redis ping: %w", err)
-	}
+func NewRepository(logger *slog.Logger, postgres *sql.DB, redis *redis.Client) *URLRepository {
 
 	return &URLRepository{
-		db:     db,
-		redis:  redisClient,
-		logger: logger,
-	}, nil
+		postgres: postgres,
+		redis:    redis,
+		logger:   logger,
+	}
 }
 
 func (r *URLRepository) CreateURL(shortCode, originalURL string) (*URL, error) {
@@ -72,7 +44,7 @@ func (r *URLRepository) CreateURL(shortCode, originalURL string) (*URL, error) {
 	query := `INSERT INTO urls (short_code, original_url) VALUES ($1, $2)
 			RETURNING id, created_at`
 
-	err := r.db.QueryRowContext(ctx, query, shortCode, originalURL).Scan(&id, &createdAt)
+	err := r.postgres.QueryRowContext(ctx, query, shortCode, originalURL).Scan(&id, &createdAt)
 	if err != nil {
 		r.logger.Error("CreateURL", "original_url", originalURL, "short_code", shortCode, "id", id, "error", err)
 		return nil, fmt.Errorf("repository: CreateURL: %w", err)
@@ -102,7 +74,7 @@ func (r *URLRepository) GetURLByShortCode(shortCode string) (string, error) {
 	query := `SELECT original_url FROM urls 
 			WHERE short_code = $1`
 
-	err = r.db.QueryRowContext(ctx, query, shortCode).Scan(&originalURL)
+	err = r.postgres.QueryRowContext(ctx, query, shortCode).Scan(&originalURL)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return "", ErrNotFound
@@ -123,7 +95,7 @@ func (r *URLRepository) GetAllURLS() ([]URL, error) {
 	query := `SELECT id, short_code, original_url, created_at FROM urls ORDER BY
 	created_at DESC`
 
-	rows, err := r.db.Query(query)
+	rows, err := r.postgres.Query(query)
 	if err != nil {
 		r.logger.Error("GetAllURLS", "error", err)
 		return nil, fmt.Errorf("repository: GetAllURLS: %w", err)
