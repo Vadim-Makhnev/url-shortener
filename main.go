@@ -18,12 +18,12 @@ import (
 
 func main() {
 	if err := godotenv.Load(); err != nil {
-		log.Fatalf("load file: %v", err)
+		log.Fatalf(".env file not loaded: %v", err)
 	}
 
 	metrics.InitMetrics()
 
-	logger := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{})
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{}))
 
 	dbConfig := config.NewDatabaseConfig()
 	dbConnections, err := config.NewDatabaseConnections(dbConfig)
@@ -32,9 +32,13 @@ func main() {
 	}
 	defer dbConnections.Close()
 
-	repo := repository.NewRepository(slog.New(logger), dbConnections.Postgres, dbConnections.Redis)
+	repo := repository.NewRepository(
+		logger,
+		dbConnections.Postgres,
+		dbConnections.Redis,
+	)
 
-	urlService := service.NewService(repo, slog.New(logger))
+	urlService := service.NewService(repo, logger)
 
 	urlHandler := handler.NewHandler(urlService)
 
