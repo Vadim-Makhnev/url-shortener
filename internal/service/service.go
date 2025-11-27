@@ -7,30 +7,42 @@ import (
 	"github.com/Vadim-Makhnev/url-shortener/internal/repository"
 )
 
-type Repository interface {
+type RepositoryPostgres interface {
 	CreateURL(shortCode, originalURL string) (*repository.URL, error)
 	GetURLByShortCode(shortCode string) (string, error)
 	GetAllURLS() ([]repository.URL, error)
 }
 
-type URLService struct {
-	repo   Repository
-	logger *slog.Logger
+type RepositoryRedis interface {
+	Set(shortCode, originalURL string) error
+	Get(shortCode string) (string, error)
 }
 
-func NewService(repo Repository, logger *slog.Logger) *URLService {
+type URLService struct {
+	postgres RepositoryPostgres
+	logger   *slog.Logger
+	redis    RepositoryRedis
+}
+
+func NewService(repo RepositoryPostgres, redis RepositoryRedis, logger *slog.Logger) *URLService {
 	return &URLService{
-		repo:   repo,
-		logger: logger,
+		postgres: repo,
+		redis:    redis,
+		logger:   logger,
 	}
 }
 
 func (s *URLService) ShortenURL(originalURL string) (*repository.URL, error) {
 	shortCode := generateShortCode()
 
-	url, err := s.repo.CreateURL(shortCode, originalURL)
+	url, err := s.postgres.CreateURL(shortCode, originalURL)
 	if err != nil {
 		s.logger.Error("ShortenURL:", "error", err)
+		return nil, err
+	}
+
+	err = s.redis.Set(shortCode, originalURL)
+	if err != nil {
 		return nil, err
 	}
 
@@ -38,7 +50,12 @@ func (s *URLService) ShortenURL(originalURL string) (*repository.URL, error) {
 }
 
 func (s *URLService) GetOriginalURL(shortCode string) (string, error) {
-	url, err := s.repo.GetURLByShortCode(shortCode)
+	val, err := s.redis.Get(shortCode)
+	if err == nil {
+		return val, nil
+	}
+
+	url, err := s.postgres.GetURLByShortCode(shortCode)
 	if err != nil {
 		s.logger.Error("GetOriginalURL:", "error", err)
 		return "", err
@@ -48,7 +65,7 @@ func (s *URLService) GetOriginalURL(shortCode string) (string, error) {
 }
 
 func (s *URLService) GetAllURLS() ([]repository.URL, error) {
-	return s.repo.GetAllURLS()
+	return s.postgres.GetAllURLS()
 }
 
 func generateShortCode() string {

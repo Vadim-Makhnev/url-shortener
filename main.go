@@ -32,13 +32,14 @@ func main() {
 	}
 	defer dbConnections.Close()
 
-	repo := repository.NewRepository(
+	postgres := repository.NewRepositoryPostgres(
 		logger,
 		dbConnections.Postgres,
-		dbConnections.Redis,
 	)
 
-	urlService := service.NewService(repo, logger)
+	redis := repository.NewRedisRepository(dbConnections.Redis)
+
+	urlService := service.NewService(postgres, redis, logger)
 
 	urlHandler := handler.NewHandler(urlService)
 
