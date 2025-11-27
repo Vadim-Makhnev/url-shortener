@@ -8,6 +8,11 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+const (
+	defaultCacheTTL = 24 * time.Hour
+	defaultTimeout  = 5 * time.Second
+)
+
 type RedisRepository struct {
 	redis *redis.Client
 }
@@ -19,14 +24,17 @@ func NewRedisRepository(redis *redis.Client) *RedisRepository {
 }
 
 func (r *RedisRepository) Set(shortCode, originalURL string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 
-	return r.redis.Set(ctx, shortCode, originalURL, time.Duration(24*time.Hour)).Err()
+	if err := r.redis.Set(ctx, shortCode, originalURL, defaultCacheTTL).Err(); err != nil {
+		return fmt.Errorf("redis: failed to set key %s: %w", shortCode, err)
+	}
+	return nil
 }
 
 func (r *RedisRepository) Get(shortCode string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 
 	val, err := r.redis.Get(ctx, shortCode).Result()
