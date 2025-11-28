@@ -10,7 +10,6 @@ import (
 
 const (
 	defaultCacheTTL = 24 * time.Hour
-	defaultTimeout  = 5 * time.Second
 )
 
 type RedisRepository struct {
@@ -23,19 +22,14 @@ func NewRedisRepository(redis *redis.Client) *RedisRepository {
 	}
 }
 
-func (r *RedisRepository) Set(shortCode, originalURL string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-	defer cancel()
-
+func (r *RedisRepository) Set(ctx context.Context, shortCode, originalURL string) error {
 	if err := r.redis.Set(ctx, shortCode, originalURL, defaultCacheTTL).Err(); err != nil {
 		return fmt.Errorf("redis: failed to set key %s: %w", shortCode, err)
 	}
 	return nil
 }
 
-func (r *RedisRepository) Get(shortCode string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-	defer cancel()
+func (r *RedisRepository) Get(ctx context.Context, shortCode string) (string, error) {
 
 	val, err := r.redis.Get(ctx, shortCode).Result()
 	if err != nil {
