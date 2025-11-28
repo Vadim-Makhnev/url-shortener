@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"strings"
+	"os"
 	"time"
 
 	"github.com/Vadim-Makhnev/url-shortener/internal/metrics"
@@ -62,7 +62,7 @@ func (h *URLHandler) ShortenURL(w http.ResponseWriter, r *http.Request) {
 
 	var res URLResponse
 
-	res.ShortURL = addScheme(url.ShortCode)
+	res.ShortURL = os.Getenv("BASE_URL") + "/" + url.ShortCode
 	res.CreatedAt = url.CreatedAt
 	res.OriginalURL = url.OriginalURL
 
@@ -91,7 +91,7 @@ func (h *URLHandler) RedirectURL(w http.ResponseWriter, r *http.Request) {
 
 	metrics.URLAccessCount.WithLabelValues(shortCode).Inc()
 
-	redirectURL := addScheme(originalURL)
+	redirectURL := originalURL
 
 	http.Redirect(w, r, redirectURL, http.StatusFound)
 }
@@ -107,7 +107,7 @@ func (h *URLHandler) GetURLs(w http.ResponseWriter, r *http.Request) {
 
 	for _, url := range list {
 		urls = append(urls, URLResponse{
-			ShortURL:    addScheme(url.ShortCode),
+			ShortURL:    os.Getenv("BASE_URL") + "/" + url.ShortCode,
 			OriginalURL: url.OriginalURL,
 			CreatedAt:   url.CreatedAt,
 		})
@@ -115,12 +115,4 @@ func (h *URLHandler) GetURLs(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(urls)
-}
-
-func addScheme(url string) string {
-	if strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://") {
-		return url
-	}
-
-	return "https://" + url
 }
