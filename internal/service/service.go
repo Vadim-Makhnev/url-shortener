@@ -1,11 +1,23 @@
 package service
 
 import (
+	"context"
 	"log/slog"
 	"math/rand"
+	"time"
 
 	"github.com/Vadim-Makhnev/url-shortener/internal/repository"
 )
+
+var (
+	defaultTimeout = 5 * time.Second
+)
+
+type URL struct {
+	ShortCode   string
+	OriginalURL string
+	CreatedAt   time.Time
+}
 
 type RepositoryPostgres interface {
 	CreateURL(shortCode, originalURL string) (*repository.URL, error)
@@ -14,8 +26,8 @@ type RepositoryPostgres interface {
 }
 
 type RepositoryRedis interface {
-	Set(shortCode, originalURL string) error
-	Get(shortCode string) (string, error)
+	Set(ctx context.Context, shortCode, originalURL string) error
+	Get(ctx context.Context, shortCode string) (string, error)
 }
 
 type URLService struct {
@@ -32,7 +44,10 @@ func NewService(repo RepositoryPostgres, redis RepositoryRedis, logger *slog.Log
 	}
 }
 
-func (s *URLService) ShortenURL(originalURL string) (*repository.URL, error) {
+func (s *URLService) ShortenURL(originalURL string) (*URL, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+
 	shortCode := generateShortCode()
 
 	url, err := s.postgres.CreateURL(shortCode, originalURL)
@@ -41,16 +56,25 @@ func (s *URLService) ShortenURL(originalURL string) (*repository.URL, error) {
 		return nil, err
 	}
 
-	err = s.redis.Set(shortCode, originalURL)
+	err = s.redis.Set(ctx, shortCode, originalURL)
 	if err != nil {
 		return nil, err
 	}
 
-	return url, nil
+	domainURL := &URL{
+		ShortCode:   url.ShortCode,
+		OriginalURL: url.OriginalURL,
+		CreatedAt:   url.CreatedAt,
+	}
+
+	return domainURL, nil
 }
 
 func (s *URLService) GetOriginalURL(shortCode string) (string, error) {
-	val, err := s.redis.Get(shortCode)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+
+	val, err := s.redis.Get(ctx, shortCode)
 	if err == nil {
 		return val, nil
 	}
@@ -64,8 +88,24 @@ func (s *URLService) GetOriginalURL(shortCode string) (string, error) {
 	return url, nil
 }
 
-func (s *URLService) GetAllURLS() ([]repository.URL, error) {
-	return s.postgres.GetAllURLS()
+func (s *URLService) GetAllURLS() ([]URL, error) {
+	urls, err := s.postgres.GetAllURLS()
+	if err != nil {
+		s.logger.Error("GetAllURLS:", "error", err)
+		return nil, err
+	}
+
+	var res []URL
+
+	for _, url := range urls {
+		res = append(res, URL{
+			ShortCode:   url.ShortCode,
+			OriginalURL: url.OriginalURL,
+			CreatedAt:   url.CreatedAt,
+		})
+	}
+
+	return res, nil
 }
 
 func generateShortCode() string {
