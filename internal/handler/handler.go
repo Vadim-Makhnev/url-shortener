@@ -9,14 +9,15 @@ import (
 
 	"github.com/Vadim-Makhnev/url-shortener/internal/metrics"
 	"github.com/Vadim-Makhnev/url-shortener/internal/repository"
+	"github.com/Vadim-Makhnev/url-shortener/internal/service"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
 type URLService interface {
-	ShortenURL(originalURL string) (*repository.URL, error)
+	ShortenURL(originalURL string) (*service.URL, error)
 	GetOriginalURL(shortCode string) (string, error)
-	GetAllURLS() ([]repository.URL, error)
+	GetAllURLS() ([]service.URL, error)
 }
 
 type ShortenRequest struct {
