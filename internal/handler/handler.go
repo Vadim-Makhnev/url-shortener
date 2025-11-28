@@ -19,10 +19,14 @@ type URLService interface {
 	GetAllURLS() ([]repository.URL, error)
 }
 
+type ShortenRequest struct {
+	URL string `json:"url"`
+}
+
 type URLResponse struct {
-	ShortCode   string    `json:"short_code"`
+	ShortURL    string    `json:"short_url"`
 	OriginalURL string    `json:"original_url"`
-	CreatedAt   time.Time `json:"created_at,omitzero"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 type URLHandler struct {
@@ -31,14 +35,6 @@ type URLHandler struct {
 
 func NewHandler(service URLService) *URLHandler {
 	return &URLHandler{service: service}
-}
-
-type ShortenRequest struct {
-	URL string `json:"url"`
-}
-
-type ShortenResponse struct {
-	ShortURL string `json:"short_url"`
 }
 
 func (h *URLHandler) ShortenURL(w http.ResponseWriter, r *http.Request) {
@@ -63,9 +59,15 @@ func (h *URLHandler) ShortenURL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var res URLResponse
+
+	res.ShortURL = addScheme(url.ShortCode)
+	res.CreatedAt = url.CreatedAt
+	res.OriginalURL = url.OriginalURL
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(url)
+	json.NewEncoder(w).Encode(res)
 }
 
 func (h *URLHandler) RedirectURL(w http.ResponseWriter, r *http.Request) {
@@ -104,7 +106,7 @@ func (h *URLHandler) GetURLs(w http.ResponseWriter, r *http.Request) {
 
 	for _, url := range list {
 		urls = append(urls, URLResponse{
-			ShortCode:   url.ShortCode,
+			ShortURL:    addScheme(url.ShortCode),
 			OriginalURL: url.OriginalURL,
 			CreatedAt:   url.CreatedAt,
 		})
