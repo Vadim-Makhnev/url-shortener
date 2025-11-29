@@ -7,7 +7,7 @@ RUN go mod download
 
 COPY . .
 
-RUN go build -o url-shortener .
+RUN go build -o url-shortener ./cmd/url-shortener
 
 EXPOSE 8080
 
