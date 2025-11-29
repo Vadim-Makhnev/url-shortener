@@ -17,7 +17,6 @@ import (
 )
 
 type application struct {
-	port    string
 	handler *handler.URLHandler
 }
 
